@@ -3,13 +3,75 @@ import numpy as np
 import argparse
 from models.rnn import EJM_RNN
 from models.lstm import EJM_LSTM
-from torch.utils.data import DataLoader
+from pytorch_lightning import Trainer
 from tqdm import tqdm
+import joblib
 
-from datasets.dataset import RoomOccupancyDataset, fetch_and_split_data
+from data.module import RoomOccupancyDataModule
+from data.dataset import RoomOccupancyDataset
 from utils.metrics import calculate_metrics, plot_predictions, plot_feature_with_time
+from utils.params import get_params
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+def load_model(model_type, checkpoint_path):
+    # dynamically load the model from checkpoint
+    if model_type == 'rnn':
+        model = EJM_RNN.load_from_checkpoint(checkpoint_path)
+    elif model_type == 'lstm':
+        model = EJM_LSTM.load_from_checkpoint(checkpoint_path)
+    else:
+        raise ValueError("Unsupported model type")
+    return model
+
+def test_model(model, data, mode):
+    predictions, actuals = [], []
+    # extract predictions and ground truths
+    for samples, targets in tqdm(data, desc='Testing'):
+        with torch.no_grad():
+            
+            if mode == 0: # MISO
+                preds = model(samples).detach().cpu()
+            else: # MIMO
+                preds = model(samples, targets.size()[1]).detach().cpu()
+                
+        predictions.append(preds)
+        actuals.append(targets)    
+    
+    # format
+    predictions = torch.vstack(predictions).cpu().numpy()
+    actuals = torch.vstack(actuals).cpu().numpy()
+    
+    # un scale the data
+    scaler = joblib.load('scaler.pkl')
+    predictions_unscaled = scaler.inverse_transform(predictions).flatten()
+    
+    # displaying metrics
+    calculate_metrics(actuals, predictions)
+    plot_predictions(actuals, predictions, type(model).__name__)
+    print(predictions)
+    plot_feature_with_time(datamodule.X_train, datamodule.X_test, predictions_unscaled, 'S3_Temp')
+    
+    return True
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model_type', type=str, default='rnn', help='rnn or lstm')
+    parser.add_argument('--checkpoint_path', type=str, required=True, help='Path to the model checkpoint')
+    args = parser.parse_args()
+    
+    model = load_model(args.model_type, args.checkpoint_path)
+    datamodule = RoomOccupancyDataModule(batch_size=1, sequence_length=25)
+    datamodule.setup(stage='test')
+    dataloader = datamodule.val_dataloader()
+
+    mode = get_params()['experiment']
+
+    if test_model(model, dataloader, mode):
+        print('Successfully tested model.')
+    else:
+        print('Failure in testing model.')
+
+# old code
+'''device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # fetch the test data
 X_train, X_test, _, y_test = fetch_and_split_data()
@@ -66,4 +128,4 @@ if __name__ == '__main__':
     if test_model(test_loader, args.model_type):
         print('Successfully tested model.')
     else:
-        print('Invalid model argument.')
+        print('Invalid model argument.')'''

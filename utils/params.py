@@ -16,7 +16,7 @@ def get_params():
     params["system"] = {"accelerator": "gpu", 
                         "strategy": "auto", 
                         "num_devices": 1,
-                        "num_workers": 8}
+                        "num_workers": 19}
 
     # Create: Path Parameters
     # - results: path to store performance analytics
@@ -32,7 +32,7 @@ def get_params():
     # - amplitude: min and max range for signal height
     # - frequency: min and max range for signal repitition
 
-    params["data"] = {"num_sequence": 3,
+    params["data"] = {"num_sequence": 25,
                     "num_samples": 10000,
                     "num_features": 18,
                     "amplitude": {"min": 1, "max": 10},
