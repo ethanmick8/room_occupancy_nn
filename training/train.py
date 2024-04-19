@@ -4,6 +4,7 @@ import numpy as np
 import pickle
 import argparse
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from models.rnn import EJM_RNN
 from models.lstm import EJM_LSTM
@@ -12,19 +13,21 @@ from datasets.dataset import RoomOccupancyDataset, fetch_and_split_data
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # grab the data split into training, validation, and testing (we only care about first 2 here)
-X_train, X_val, _, y_train, y_val, _ = fetch_and_split_data()
+X_train, _, y_train, _ = fetch_and_split_data()
 
 # some hyperparameters
 sequence_length = 25
 batch_size = 32
 
+#print(f"Train size: {len(X_train)}, Validation size: {len(X_val)}, Val size: {len(X_val)}, Sequence length: {sequence_length}")
+
 # create the datasets
 train_dataset = RoomOccupancyDataset(X_train, y_train, sequence_length)
-val_dataset = RoomOccupancyDataset(X_val, y_val, sequence_length)
+#val_dataset = RoomOccupancyDataset(X_val, y_val, sequence_length)
 
 # dataloaders
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+#val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
 # last dimension is input size
 input_size = train_loader.dataset.sequences.shape[2]
@@ -37,7 +40,7 @@ def train_rnn(train_loader, hidden_size=64, num_layers=2, num_epochs=100, learni
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     
     # Train the model
-    for epoch in range(num_epochs):
+    for epoch in tqdm(range(num_epochs), desc='Training'):
         for sequences, targets in train_loader:
             sequences, targets = sequences.to(device), targets.to(device)
             optimizer.zero_grad() # zero the parameter gradients
@@ -52,14 +55,14 @@ def train_rnn(train_loader, hidden_size=64, num_layers=2, num_epochs=100, learni
 
 
 def train_lstm(train_loader, hidden_size=64, num_layers=2, num_epochs=100, learning_rate=0.001):
-    model = EJM_LSTM(input_size, hidden_size, num_layers)
+    model = EJM_LSTM(input_size, hidden_size, num_layers).to(device)
     
     # Loss and optimizer
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     
     # Train the model
-    for epoch in range(num_epochs):
+    for epoch in tqdm(range(num_epochs), desc='Training'):
         for sequences, targets in train_loader:
             sequences, targets = sequences.to(device), targets.to(device)
             optimizer.zero_grad() # zero the parameter gradients
@@ -85,6 +88,5 @@ if __name__ == '__main__':
     else:
         raise ValueError('Model type must be rnn or lstm')
     
-    # pickle and save the model
-    with open(f'../checkpoints/trained_model_{args.model_type}.pkl', 'wb') as f:
-        pickle.dump(trained_model, f)
+    # save the model
+    torch.save(trained_model.state_dict(), f'checkpoints/trained_model_{args.model_type}.pkl')

@@ -17,11 +17,36 @@ class RoomOccupancyDataset(Dataset):
         scale_data: whether to standardize the data
         """
         if scale_data:
-            scaler = StandardScaler()
-            X = scaler.fit_transform(X)
-            y = scaler.fit_transform(y.values.reshape(-1, 1))
+            # exclude binary columns from scaling
+            binary_cols = [col for col in X.columns if X[col].dropna().value_counts().index.isin([0, 1]).all()]
+            binary_data = X[binary_cols]
+            numeric_cols = X.drop(columns=binary_cols)
             
-        self.sequences, self.targets = self.create_sequences(X, y, sequence_length) 
+            # convert Date and Time columns to useful numeric features
+            # day of the week and hour of the day seem most useful
+            numeric_cols['Date'] = pd.to_datetime(X['Date'], format='%Y/%m/%d').dt.dayofweek
+            numeric_cols['Time'] = pd.to_datetime(X['Time'], format='%H:%M:%S').dt.hour
+            
+            # scale numeric features
+            scaler = StandardScaler()
+            numeric_scaled = pd.DataFrame(scaler.fit_transform(numeric_cols), columns=numeric_cols.columns)
+            
+            # Reset indices to align all columns properly
+            numeric_scaled.reset_index(drop=True, inplace=True)
+            binary_data.reset_index(drop=True, inplace=True)
+            
+            # combine scaled features with binary columns
+            X_scaled = pd.concat([numeric_cols, binary_data], axis=1)
+            
+            # finally, scale targets
+            y = y.values.reshape(-1, 1)
+        else:
+            X_scaled = X
+
+        X_scaled = X_scaled.to_numpy()
+        y = y if scale_data else y.to_numpy()
+        
+        self.sequences, self.targets = self.create_sequences(X_scaled, y, sequence_length) 
     
     def create_sequences(self, X, y, sequence_length):
         sequences = []
@@ -43,7 +68,16 @@ def fetch_and_split_data():
     # data (as pandas dataframes)
     X = room_occupancy_estimation.data.features 
     y = room_occupancy_estimation.data.targets
-    # train/val/test split of 70/15/15
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-    X_test, X_val, y_test, y_val = train_test_split(X, y, test_size=0.5, random_state=42)
-    return X_train, X_val, X_test, y_train, y_val, y_test
+    # train/test split of 70/30 - sequential
+    n = len(X)
+    train_size = int(n * 0.7)
+    val_size = int(n * 0.3)
+    X_train, y_train = X.iloc[:train_size], y.iloc[:train_size]
+    X_test, y_test = X.iloc[train_size:], y.iloc[train_size:]
+    # reset indices to prevent misalignment
+    X_train, X_test = [df.reset_index(drop=True) for df in [X_train, X_test]]
+    y_train, y_test = [s.reset_index(drop=True) for s in [y_train, y_test]]
+
+    return X_train, X_test, y_train, y_test
+
+# issue related to data setup validation is acting weird
