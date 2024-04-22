@@ -22,7 +22,7 @@ def load_model(model_type, checkpoint_path):
         raise ValueError("Unsupported model type")
     return model
 
-def test_model(model, data, mode):
+def test_model(model, data, mode, model_type):
     predictions, actuals = [], []
     # extract predictions and ground truths
     for samples, targets in tqdm(data, desc='Testing'):
@@ -40,15 +40,30 @@ def test_model(model, data, mode):
     predictions = torch.vstack(predictions).cpu().numpy()
     actuals = torch.vstack(actuals).cpu().numpy()
     
-    # un scale the data
+    # load in the scaler
     scaler = joblib.load('scaler.pkl')
-    predictions_unscaled = scaler.inverse_transform(predictions).flatten()
+    
+    # separate the binary and numeric columns
+    params = get_params()
+    predictions_numeric = predictions[:, :16]
+    predictions_binary = predictions[:, 16:]
+    
+    # unscale numerics and recombine with binary
+    predictions_numeric_unscaled = scaler.inverse_transform(predictions_numeric)
+    print(predictions_numeric_unscaled.shape)
+    predictions_unscaled = np.concatenate((predictions_numeric_unscaled, predictions_binary), axis=1)
+    
+    print(predictions.shape)
+    print(actuals.shape, predictions_unscaled.shape)
     
     # displaying metrics
-    calculate_metrics(actuals, predictions)
-    plot_predictions(actuals, predictions, type(model).__name__)
-    print(predictions)
-    plot_feature_with_time(datamodule.X_train, datamodule.X_test, predictions_unscaled, 'S3_Temp')
+    #calculate_metrics(actuals, predictions_unscaled)
+    #plot_predictions(actuals, predictions_unscaled, type(model).__name__)
+    #print(predictions)
+    # we want just the S3_Temp feature, which is th 5th column
+    predictions_unscaled = predictions_unscaled[:, 10]
+    print(predictions_unscaled)
+    plot_feature_with_time(datamodule.X_train, datamodule.X_test, predictions_unscaled, 'S1_Sound', model_type)
     
     return True
 
@@ -65,7 +80,7 @@ if __name__ == '__main__':
 
     mode = get_params()['experiment']
 
-    if test_model(model, dataloader, mode):
+    if test_model(model, dataloader, mode, args.model_type):
         print('Successfully tested model.')
     else:
         print('Failure in testing model.')

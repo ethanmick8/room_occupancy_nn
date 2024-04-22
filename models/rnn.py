@@ -47,11 +47,16 @@ class EJM_RNN(pl.LightningModule):
     def step_wrapper(self, batch, batch_idx, mode):
         x, y = batch
         
+        print(f"Input x shape: {x.shape}")  # Expected shape: (batch_size, sequence_length, num_features)
+        print(f"Target y shape: {y.shape}")  # Expected shape: (batch_size, sequence_length, num_features)
+        
         if self.hparams.experiment == 1: # MIMO
             # 3D - batch size, sequence length, number of features
             y = y.view(x.size(0), -1, self.hparams.data["num_features"])
-        
+            print(f"MIMO Target y reshaped shape: {y.shape}")  # Expected shape: (batch_size, sequence_length, num_features)
+
         y_hat = self(x, y.size(1)) if self.hparams.experiment == 1 else self(x)
+        print(f"Model output y_hat shape: {y_hat.shape}")  # Expected shape should match y's shape
         loss = self.criterion(y_hat, y)
         self.log(mode, loss, batch_size=x.size(0), on_step=True, on_epoch=True, sync_dist=True)
         
@@ -69,17 +74,3 @@ class EJM_RNN(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.model["learning_rate"])
         return optimizer
-
-'''class EJM_RNN(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers):
-        super(EJM_RNN, self).__init__()
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-        self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_size, 1) # Assuming output dimension is 1
-    
-    def forward(self, x):
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
-        out, _ = self.rnn(x, h0)
-        out = self.fc(out[:, -1, :]) # Use only the last output
-        return out'''

@@ -20,7 +20,7 @@ def plot_predictions(actuals, predictions, model_type):
     plt.savefig(f'figures/{model_type}_predictions_{date}.png')
 
 
-def plot_feature_with_time(X_train, X_test, predictions, feature_name, sequence_length=25):
+def plot_feature_with_time(X_train, X_test, predictions, feature_name, model_type, sequence_length=25):
     plt.figure(figsize=(12, 6))
     
     # Generating time steps for training and testing
@@ -47,7 +47,7 @@ def plot_feature_with_time(X_train, X_test, predictions, feature_name, sequence_
 
     # Plotting predictions
     plt.plot(test_time_steps, predictions, label='Predictions', color='green', linestyle='--')
-    plt.title(f'Time Series Plot for {feature_name} with Predictions')
+    plt.title(f'{model_type} - {feature_name} over time with Predictions')
     plt.xlabel('Time Index')
     plt.ylabel(feature_name)
     plt.legend()
