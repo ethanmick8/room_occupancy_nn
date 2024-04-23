@@ -5,10 +5,10 @@ import pickle
 import argparse
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
+from sklearn.model_selection import ParameterGrid
 
 from models.rnn import EJM_RNN
 from models.lstm import EJM_LSTM
@@ -18,22 +18,22 @@ from utils.params import get_params
 
 # currently working on clarifying y, y_hat dimensions and difference for MISO and MIMO within models
 
-def train_model(model_type='rnn'):
+def train_model(model_type, hyperparams):
     # reproducibility
     seed_everything(42)
 
     # load parameters and setup model
     params = get_params()
     if model_type == 'rnn':
-        model = EJM_RNN(params)
+        model = EJM_RNN(hyperparams)
     elif model_type == 'lstm':
-        model = EJM_LSTM(params)
+        model = EJM_LSTM(hyperparams)
     else:
         raise ValueError('Model type must be either "rnn" or "lstm"')
 
     # init data module
-    data_module = RoomOccupancyDataModule(batch_size=params["model"]['batch_size'],
-                                          sequence_length=params["data"]['num_sequence'])
+    data_module = RoomOccupancyDataModule(batch_size=hyperparams['batch_size'],
+                                          sequence_length=hyperparams['num_sequence'])
 
     # setup logger and callbacks
     logger = TensorBoardLogger("lightning_logs", name=model_type)
@@ -46,7 +46,7 @@ def train_model(model_type='rnn'):
 
     early_stopping = EarlyStopping(
         monitor='val_loss',
-        patience=10,
+        patience=15,
         verbose=True,
         mode='min')
 
@@ -65,12 +65,27 @@ def train_model(model_type='rnn'):
     return checkpoint_callback.best_model_path
 
 if __name__ == '__main__':
+    '''torch.set_float32_matmul_precision('medium')
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_type', type=str, default='rnn', help='Model to train: rnn or lstm')
     args = parser.parse_args()
 
     best_model_path = train_model(model_type=args.model_type)
-    print(f"Best model saved at {best_model_path}")
+    print(f"Best model saved at {best_model_path}")'''
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model_type', type=str, default='rnn', help='Model to train: rnn or lstm')
+    args = parser.parse_args()
+
+    params = get_params()
+    grid = ParameterGrid(params['grid_search'])
+
+    for parms in grid:
+        parms['num_sequence'] = params['data']['num_sequence']
+        parms['num_features'] = params['data']['num_features']
+        parms['experiment'] = params['experiment']
+        parms['experiment_name'] = f"lr{parms['learning_rate']}_hs{parms['hidden_size']}"
+        best_model_path = train_model(args.model_type, parms)
+        print(f"Model trained with params {parms} saved at {best_model_path}")
 
 # old code
 '''device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

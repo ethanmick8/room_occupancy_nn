@@ -8,9 +8,12 @@ from ucimlrepo import fetch_ucirepo
 from sklearn.model_selection import train_test_split
 
 from data.dataset import RoomOccupancyDataset
+from utils.params import get_params
+
+params = get_params()
 
 class RoomOccupancyDataModule(LightningDataModule):
-    def __init__(self, batch_size=32, sequence_length=30):
+    def __init__(self, batch_size=32, sequence_length=params['data']['num_sequence']):
         super().__init__()
         self.batch_size = batch_size
         self.sequence_length = sequence_length
@@ -37,9 +40,13 @@ class RoomOccupancyDataModule(LightningDataModule):
         self.X_train, self.X_test, self.y_train, self.y_test = X_train, X_test, y_train, y_test
 
     def train_dataloader(self):
-        train_dataset = RoomOccupancyDataset(self.X_train, self.y_train, self.sequence_length)
+        mode_num = get_params()['experiment']
+        mode = 'MIMO' if mode_num == 1 else 'MISO'
+        train_dataset = RoomOccupancyDataset(self.X_train, self.y_train, self.sequence_length, mode=mode)
         return DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
 
     def val_dataloader(self):
-        val_dataset = RoomOccupancyDataset(self.X_test, self.y_test, self.sequence_length)
+        mode_num = get_params()['experiment']
+        mode = 'MIMO' if mode_num == 1 else 'MISO'
+        val_dataset = RoomOccupancyDataset(self.X_test, self.y_test, self.sequence_length, mode=mode)
         return DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False)

@@ -17,42 +17,44 @@ class EJM_LSTM(pl.LightningModule):
             batch_first=True
         )
         self.criterion = nn.functional.mse_loss # loss function
-        # Output size always total number of features; reshaped later depending on experiment type
-        output_size = self.hparams.data["num_features"]
-        self.fc = nn.Linear(self.hparams.model["hidden_size"], output_size) # fully connected linear layer
+        # output_size = self.hparams.data["num_features"] -- for predicting all features (not the focus here)
+        self.fc = nn.Linear(self.hparams.model["hidden_size"], 1) # fully connected linear layer
 
     def forward(self, x, sequence=None):
         hidden = torch.zeros(self.hparams.model["num_layers"], x.size(0), self.hparams.model["hidden_size"], device=self.device)
         cell = torch.zeros(self.hparams.model["num_layers"], x.size(0), self.hparams.model["hidden_size"], device=self.device)
-        #out, _ = self.lstm(x, (hidden, cell))
         
-        # Adjust depending on the experiment type (MISO, MIMO)
+        lstm_out, _ = self.lstm(x, (hidden, cell))
+        
+        if self.hparams.experiment == 0: # MISO
+            out = lstm_out[:, -1, :] # (batch_size, hidden_size)
+        else: # MIMO
+            out = lstm_out # (batch_size, sequence_length, hidden_size)
+            
+        y_pred = self.fc(out) # linear layer
+        
+        '''# Adjust depending on the experiment type (MISO, MIMO)
         if self.hparams.experiment == 0:
             # MISO
             features, _ = self.lstm(x, (hidden, cell)) # LSTM layer
-            out = features[:, -1].view(x.size()[0], -1) # using only the last output
+            out = features[:, -1].view(x.size(0), -1) # using only the last output
             y_pred = self.fc(out) # linear layer
         else:
             # MIMO
-            y_pred = torch.zeros(x.size()[0], sequence).to(x.device)
-            
+            if sequence is None:
+                sequence = x.size(1)  # Use the input sequence length if not provided
+            y_pred = torch.zeros(x.size(0), sequence, 1).to(x.device)
             for i in range(sequence): # output for every time step
                 features, _ = self.lstm(x, (hidden, cell)) # LSTM layer
-                out = features[:, -1].view(x.size()[0], -1) # output
-                out = self.fc(out).view(-1) # linear layer
-                y_pred[:, i] = out
+                out = features[:, -1] # output
+                y_pred[:, i, 0] = self.fc(out).squeeze() # linear layer'''
             
         return y_pred
 
     # handle training_step and validation_step
     def step_wrapper(self, batch, batch_idx, mode):
         x, y = batch
-        
-        if self.hparams.experiment == 1: # MIMO
-            # 3D - batch size, sequence length, number of features
-            y = y.view(x.size(0), -1, self.hparams.data["num_features"])
-        
-        y_hat = self(x, y.size(1)) if self.hparams.experiment == 1 else self(x)
+        y_hat = self(x)
         loss = self.criterion(y_hat, y)
         self.log(mode, loss, batch_size=x.size(0), on_step=True, on_epoch=True, sync_dist=True)
         

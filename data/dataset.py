@@ -10,13 +10,15 @@ import joblib
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class RoomOccupancyDataset(Dataset):
-    def __init__(self, X, y, sequence_length, scale_data=True):
+    def __init__(self, X, y, sequence_length, scale_data=True, mode='MISO'):
         """
         X: features, initially a Pandas DataFrame
         y: targets, initially a Pandas Series or DataFrame
         sequence_length: the length of the input sequences
         scale_data: whether to standardize the data
+        mode: Model I/O structure (MISO or MIMO)
         """
+        self.mode = mode
         if scale_data:
             # exclude binary columns from scaling
             binary_cols = [col for col in X.columns if X[col].dropna().value_counts().index.isin([0, 1]).all()]
@@ -56,22 +58,18 @@ class RoomOccupancyDataset(Dataset):
     def create_sequences(self, X, y, sequence_length):
         sequences = []
         targets = []
-        # generate sequences
         for i in range(len(X) - sequence_length + 1):
-            end_ix = i + sequence_length
-            if end_ix > len(X):
-                # pad sequence if it goes beyond the dataset
-                seq = X[i:len(X)]
-                # pad the sequence to reach the required sequence length
-                pad = np.zeros((sequence_length - len(seq), X.shape[1]))
-                seq = np.concatenate((seq, pad), axis=0)
-            else:
-                seq = X[i:end_ix]
+            seq = X[i:i + sequence_length]
             sequences.append(seq)
-            # Use the last available target if it goes beyond
-            targets.append(y[end_ix - 1] if end_ix <= len(y) else y[-1])
+            if self.mode == 'MISO':
+                # append the target at the end of the sequence
+                targets.append(y[i + sequence_length - 1])
+            else:  # MIMO
+                # append targets for each timestep in the sequence
+                targets.append(y[i:i + sequence_length])
+
         return np.array(sequences), np.array(targets)
-       
+    
     def __len__(self):
         return len(self.sequences)
     

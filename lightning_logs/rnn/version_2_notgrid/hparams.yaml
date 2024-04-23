@@ -1,0 +1,7 @@
+batch_size: 64
+experiment_name: lr0.001_hs128
+hidden_size: 128
+learning_rate: 0.001
+num_features: 18
+num_layers: 1
+num_sequence: 25

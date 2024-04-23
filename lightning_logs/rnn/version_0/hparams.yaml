@@ -26,5 +26,5 @@ paths:
 system:
   accelerator: gpu
   num_devices: 1
-  num_workers: 8
+  num_workers: 19
   strategy: auto

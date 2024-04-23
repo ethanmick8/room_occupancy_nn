@@ -16,7 +16,7 @@ def get_params():
     params["system"] = {"accelerator": "gpu", 
                         "strategy": "auto", 
                         "num_devices": 1,
-                        "num_workers": 19}
+                        "num_workers": 0}
 
     # Create: Path Parameters
     # - results: path to store performance analytics
@@ -41,7 +41,7 @@ def get_params():
     # Create: Model Parameters
     # - batch_size: number of observations per sample to network
     # - num_layers: number of stacked lstm cells
-    # - hidden_layers: number of lstm features
+    # - hidden_size: number of lstm features
     # - learning_rate: how much to listen to gradient
     # - num_epochs: number of times model observes full dataset 
 
@@ -57,5 +57,11 @@ def get_params():
     params["evaluation"] = {"tags": ["train_error_epoch", 
                                     "valid_error_epoch", 
                                     "lr-Adam"]}
+    
+    params["grid_search"] = {"hidden_size": [128, 256],
+                             "learning_rate": [1e-3, 1e-4],
+                             "batch_size": [64, 128],
+                             "num_layers": [1, 3] }
+    
     
     return params
