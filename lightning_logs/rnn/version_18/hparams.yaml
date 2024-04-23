@@ -1,8 +1,0 @@
-batch_size: 128
-experiment: 0
-experiment_name: lr0.0001_hs256
-hidden_size: 256
-learning_rate: 0.0001
-num_features: 18
-num_layers: 3
-num_sequence: 25
