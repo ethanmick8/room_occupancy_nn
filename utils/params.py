@@ -4,23 +4,23 @@ def get_params(method="default"):
     
     if method == "grid_search":
         # Grid Search Configuration
-        params["config"] = {"hidden_size": [64, 128, 1024],
-                            "learning_rate": [1e-5],
-                            "batch_size": [32],
-                            "num_layers": [4],
+        params["config"] = {"hidden_size": [128, 256],
+                            "learning_rate": [0.001, 0.0001],
+                            "batch_size": [64, 128],
+                            "num_layers": [1, 3],
                             "max_epochs": [100] }
     elif method == "default":
         # Default Configuration
-        params['config'] = {"hidden_size": 64,
-                            "learning_rate": 1e-2,
-                            "batch_size": 100,
-                            "num_layers": 4,
-                            "max_epochs": 250 }
+        params['config'] = {"hidden_size": 128,
+                            "learning_rate": 0.0001,
+                            "batch_size": 64,
+                            "num_layers": 1,
+                            "max_epochs": 100 }
     else:
         raise ValueError("Invalid method. Must be either 'grid_search' or 'default'.")
 
     # Experiment Objective
-    # - experiment: (0) Many to 1, (1) many to many
+    # - experiment: (0) Many to 1, (1) many to many. (2) 1 to 1
 
     params["experiment"] = 0
 
@@ -30,20 +30,6 @@ def get_params(method="default"):
                         "strategy": "auto", 
                         "num_devices": 1,
                         "num_workers": 0}
-
-    # Path Parameters
-    # - results: path to store performance analytics
-    # - version: version number of experiment to investigate for results
-
-    params["paths"] = {"results": "results",
-                    "version": 0}
-    
-    # Evaluation Parameters
-    # - tags: column names from saved algorithm training analytics
-
-    params["evaluation"] = {"tags": ["train_error_epoch", 
-                                    "valid_error_epoch", 
-                                    "lr-Adam"]}
 
     # Data Parameters
 

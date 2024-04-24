@@ -57,7 +57,7 @@ def test_model(model, data, mode, model_type, model_name, is_grid=False):
     # calc and display metrics
     accuracy, f1 = calculate_metrics(actuals, predictions)
     plot_confusion_matrix(actuals, predictions, [0, 1, 2, 3], model_type, model_name, is_grid=is_grid)
-    plot_occupancy_with_time(datamodule.y_train, datamodule.y_test, predictions, model_type, model_name, is_grid=is_grid, sequence_length=params['data']['num_sequence'])
+    plot_occupancy_with_time(datamodule.y_train, datamodule.y_test, predictions, model_type, model_name, is_grid=is_grid, is_test=True, sequence_length=params['data']['num_sequence'])
     
     # displaying metrics - regression
     #mse, mae = calculate_metrics_regression(actuals, predictions)
@@ -100,8 +100,8 @@ if __name__ == '__main__':
     
     datamodule = RoomOccupancyDataModule(batch_size=1, sequence_length=params['data']['num_sequence'])
     datamodule.setup(stage='test')
-    #dataloader = datamodule.val_dataloader() # for traditional testing
-    dataloader = datamodule.predict_dataloader() # for prediction on entire dataset
+    dataloader = datamodule.val_dataloader() # for traditional testing
+    #dataloader = datamodule.predict_dataloader() # for prediction on entire dataset (uncomment if doing, and set is_test=False for plotting)
     mode = params['experiment']
     
     if args.grid_search == 'True':

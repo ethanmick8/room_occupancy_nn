@@ -18,15 +18,22 @@ class EJM_RNN(pl.LightningModule):
             num_layers=self.hparams.config["num_layers"],
             batch_first=True
         )
-        #self.criterion = nn.functional.mse_loss # loss function - regression
-        #self.fc = nn.Linear(self.hparams.model["hidden_size"], 1) # fully connected linear layer - regression
+        self.hidden = None
         self.criterion = nn.CrossEntropyLoss() # loss function - classification
         self.fc = nn.Linear(self.hparams.config["hidden_size"], 4) # fully connected linear layer - classification
 
     def forward(self, x, sequence=None):
-        hidden = torch.zeros(self.hparams.config["num_layers"], x.size(0), self.hparams.config["hidden_size"], device=self.device)
-        rnn_out, _ = self.rnn(x, hidden) # RNN layer - takes hidden state and input
-        if self.hparams.experiment == 0: # MISO
+        # non-stateful
+        self.hidden = torch.zeros(self.hparams.config["num_layers"], x.size(0), self.hparams.config["hidden_size"], device=self.device)
+        # (alt) stateful approach
+        '''if self.hidden is None:
+            self.hidden = torch.zeros(self.hparams.config["num_layers"], x.size(0), self.hparams.config["hidden_size"], device=self.device)
+        else:
+            self.hidden = self.hidden.detach()
+            self.hidden = self._resize_state(self.hidden, x.size(0))
+        hidden = self.hidden.contiguous()'''
+        rnn_out, _ = self.rnn(x, self.hidden) # RNN layer - takes hidden state and input
+        if self.hparams.experiment == 0 or self.hparams.experiment == 2: # MISO or SISO
             out = rnn_out[:, -1, :] # (batch_size, hidden_size)
         else: # MIMO
             out = rnn_out # (batch_size, sequence_length, hidden_size)   
@@ -55,9 +62,19 @@ class EJM_RNN(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         return self.step_wrapper(batch, batch_idx, 'val_loss')
     
-    #def test_step(self, batch, batch_idx):
-    #    return self.step_wrapper(batch, batch_idx, 'test_loss')
-
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.config["learning_rate"])
         return optimizer
+    
+    def _resize_state(self, state, batch_size):
+        """ Resize the state's batch size while maintaining the state's other dimensions. """
+        _, state_batch_size, hidden_size = state.size()
+        if state_batch_size != batch_size:
+            if batch_size > state_batch_size:
+                # Increase the batch size by concatenating zeros
+                padding = torch.zeros(self.hparams.config["num_layers"], batch_size - state_batch_size, hidden_size, device=self.device)
+                state = torch.cat([state, padding], dim=1)
+            else:
+                # Decrease the batch size by slicing
+                state = state[:, :batch_size, :]
+        return state

@@ -42,9 +42,6 @@ class RoomOccupancyDataset(Dataset):
             
             # combine scaled features with binary columns
             X_scaled = pd.concat([numeric_cols, binary_data], axis=1)
-            
-            # finally, scale targets (regression only)
-            #y = y.values.reshape(-1, 1)
         else:
             X_scaled = X
             #y = y.to_numpy()
@@ -53,7 +50,7 @@ class RoomOccupancyDataset(Dataset):
         y = y.to_numpy().reshape(-1)
         #print(y.shape)
         
-        # Convert class indices to one-hot encoding
+        # Convert class indices to one-hot encoding (not needed)
         #y_one_hot = torch.nn.functional.one_hot(torch.tensor(y), num_classes=4).numpy()
         
         # save the scaler for later use
@@ -66,15 +63,19 @@ class RoomOccupancyDataset(Dataset):
         sequences = []
         targets = []
         for i in range(len(X) - self.sequence_length + 1):
-            seq = X[i:i + self.sequence_length]
-            sequences.append(seq)
-            if self.mode == 'MISO':
+            if self.mode =='SISO':
+                seq = np.zeros((self.sequence_length, X.shape[1]))
+                seq[0] = X[i]
+                sequences.append(seq)
+            else: # Multi-input types
+                seq = X[i:i + self.sequence_length]
+                sequences.append(seq)
+            if self.mode == 'MISO' or self.mode == 'SISO':
                 # append the target at the end of the sequence
                 targets.append(y[i + self.sequence_length - 1])
             else:  # MIMO
                 # append targets for each timestep in the sequence
                 targets.append(y[i:i + self.sequence_length])
-        #print(f"Sequences shape: {np.array(sequences).shape}, Targets shape: {np.array(targets).shape}")
         return np.array(sequences), np.array(targets)
     
     def __len__(self):

@@ -32,18 +32,8 @@ def plot_confusion_matrix(actuals, predictions, classes, model_type, model_name,
             os.makedirs(output_dir)
         plt.savefig(f'{output_dir}/CM_{date}.png')
         plt.show()
-
-def calculate_metrics_regression(actuals, predictions):
-    params = get_params()
-    if params['experiment'] == 1: # MIMO
-        actuals = actuals.mean(axis=1)
-        predictions = predictions.mean(axis=1)
-    mse = mean_squared_error(actuals, predictions)
-    mae = mean_absolute_error(actuals, predictions)
-    print(f'MSE: {mse: .4f}, MAE: {mae: .4f}')
-    return mse, mae
     
-def plot_occupancy_with_time(y_train, y_test, predictions, model_type, model_name, is_grid=False, sequence_length=25):
+def plot_occupancy_with_time(y_train, y_test, predictions, model_type, model_name, is_grid=False, is_test=True, sequence_length=25):
     plt.figure(figsize=(12, 6))
 
     #if predictions.ndim == 3:  # Check if predictions are 3D - MIMO
@@ -58,9 +48,12 @@ def plot_occupancy_with_time(y_train, y_test, predictions, model_type, model_nam
     test_time_steps = range(len(y_train), len(y_train) + len(y_test))
 
     # Ensure sizes match
-    prediction_time_steps = range(len(y_train) + sequence_length - 1, len(y_train) + len(y_test))
+    if is_test:
+        prediction_time_steps = range(len(y_train) + sequence_length - 1, len(y_train) + len(y_test))
+    else:
+        prediction_time_steps = range(sequence_length - 1, len(y_train) + len(y_test))
     if len(predictions) != len(prediction_time_steps):
-        raise ValueError(f"Predictions and test time steps must have the same length. Their lengths are: {len(predictions)} and {len(prediction_time_steps)}")
+        raise ValueError(f"Predictions and prediction time steps must have the same length. Their lengths are: {len(predictions)} and {len(prediction_time_steps)}")
 
     # Plotting training data
     if isinstance(y_train, pd.DataFrame):
@@ -110,8 +103,3 @@ def display_grid_results(df_results, model_type):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     sorted_df.to_csv(f'{output_dir}/{date}.csv')
-
-  
-#X_train, X_test, y_train, y_test = fetch_and_split_data()
-
-#plot_feature_with_time(X_train, X_test, 'S3_Temp')
