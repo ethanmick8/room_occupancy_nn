@@ -9,6 +9,7 @@ from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 from sklearn.model_selection import ParameterGrid
+import datetime
 
 from models.rnn import EJM_RNN
 from models.lstm import EJM_LSTM
@@ -18,41 +19,39 @@ from utils.params import get_params
 
 # currently working on clarifying y, y_hat dimensions and difference for MISO and MIMO within models
 
-def train_model(model_type, hyperparams):
+def train_model(model_type, params):
     # reproducibility
     seed_everything(42)
 
-    # load parameters and setup model
-    params = get_params()
     if model_type == 'rnn':
-        model = EJM_RNN(hyperparams)
+        model = EJM_RNN(params)
     elif model_type == 'lstm':
-        model = EJM_LSTM(hyperparams)
+        model = EJM_LSTM(params)
     else:
         raise ValueError('Model type must be either "rnn" or "lstm"')
 
     # init data module
-    data_module = RoomOccupancyDataModule(batch_size=hyperparams['batch_size'],
-                                          sequence_length=hyperparams['num_sequence'])
+    data_module = RoomOccupancyDataModule(batch_size=params['config']['batch_size'],
+                                          sequence_length=params['data']['num_sequence'])
 
     # setup logger and callbacks
-    logger = TensorBoardLogger("lightning_logs", name=model_type)
+    logger = TensorBoardLogger("lightning_logs", name=model_type, version=params['experiment_name'])
     checkpoint_callback = ModelCheckpoint(
         monitor='val_loss',
         filename='{epoch:02d}-{val_loss:.2f}',
-        save_top_k=3,
+        save_top_k=1,
         mode='min',
         auto_insert_metric_name=False)
 
     early_stopping = EarlyStopping(
         monitor='val_loss',
-        patience=15,
+        patience=50,
         verbose=True,
         mode='min')
 
     # init trainer
     trainer = Trainer(
-        max_epochs=params["model"]['num_epochs'],
+        max_epochs=params["config"]['max_epochs'],
         accelerator='cuda' if torch.cuda.is_available() else None,
         logger=logger,
         callbacks=[checkpoint_callback, early_stopping],
@@ -65,106 +64,26 @@ def train_model(model_type, hyperparams):
     return checkpoint_callback.best_model_path
 
 if __name__ == '__main__':
-    '''torch.set_float32_matmul_precision('medium')
+    #torch.set_float32_matmul_precision('medium')
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_type', type=str, default='rnn', help='Model to train: rnn or lstm')
+    parser.add_argument('--grid_search', type=str, default='False', help='Perform grid search: True or False')
     args = parser.parse_args()
 
-    best_model_path = train_model(model_type=args.model_type)
-    print(f"Best model saved at {best_model_path}")'''
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model_type', type=str, default='rnn', help='Model to train: rnn or lstm')
-    args = parser.parse_args()
+    if args.grid_search == 'False':
+        params = get_params() # default
+        
+        params['experiment_name'] = f"default_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+        best_model_path = train_model(args.model_type, params)
+        print(f"Best model saved at {best_model_path}")
+    elif args.grid_search == 'True':
+        params = get_params(method='grid_search')
+        grid = ParameterGrid(params['config'])
 
-    params = get_params()
-    grid = ParameterGrid(params['grid_search'])
-
-    for parms in grid:
-        parms['num_sequence'] = params['data']['num_sequence']
-        parms['num_features'] = params['data']['num_features']
-        parms['experiment'] = params['experiment']
-        parms['experiment_name'] = f"lr{parms['learning_rate']}_hs{parms['hidden_size']}"
-        best_model_path = train_model(args.model_type, parms)
-        print(f"Model trained with params {parms} saved at {best_model_path}")
-
-# old code
-'''device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-# grab the data split into training, validation, and testing (we only care about first 2 here)
-X_train, _, y_train, _ = fetch_and_split_data()
-
-# some hyperparameters
-sequence_length = 25
-batch_size = 32
-
-#print(f"Train size: {len(X_train)}, Validation size: {len(X_val)}, Val size: {len(X_val)}, Sequence length: {sequence_length}")
-
-# create the datasets
-train_dataset = RoomOccupancyDataset(X_train, y_train, sequence_length)
-#val_dataset = RoomOccupancyDataset(X_val, y_val, sequence_length)
-
-# dataloaders
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-#val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-
-# last dimension is input size
-input_size = train_loader.dataset.sequences.shape[2]
-
-def train_rnn(train_loader, hidden_size=64, num_layers=2, num_epochs=100, learning_rate=0.001):
-    model = EJM_RNN(input_size, hidden_size, num_layers).to(device)
-    
-    # Loss and optimizer
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    
-    # Train the model
-    for epoch in tqdm(range(num_epochs), desc='Training'):
-        for sequences, targets in train_loader:
-            sequences, targets = sequences.to(device), targets.to(device)
-            optimizer.zero_grad() # zero the parameter gradients
-            outputs = model(sequences)
-            loss = criterion(outputs, targets)
-            loss.backward()
-            optimizer.step()
-        if (epoch+1) % 10 == 0:
-            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
-            
-    return model
-
-
-def train_lstm(train_loader, hidden_size=64, num_layers=2, num_epochs=100, learning_rate=0.001):
-    model = EJM_LSTM(input_size, hidden_size, num_layers).to(device)
-    
-    # Loss and optimizer
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    
-    # Train the model
-    for epoch in tqdm(range(num_epochs), desc='Training'):
-        for sequences, targets in train_loader:
-            sequences, targets = sequences.to(device), targets.to(device)
-            optimizer.zero_grad() # zero the parameter gradients
-            outputs = model(sequences)
-            loss = criterion(outputs, targets)
-            loss.backward()
-            optimizer.step()
-        if (epoch+1) % 10 == 0:
-            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
-    
-    return model
-
-if __name__ == '__main__':
-    # parse the model type
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model_type', type=str, default='rnn', help='rnn or lstm')
-    args = parser.parse_args()
-    
-    if args.model_type == 'rnn':
-        trained_model = train_rnn(train_loader)
-    elif args.model_type == 'lstm':
-        trained_model = train_lstm(train_loader)
+        for param_set in grid:
+            params['config'] = param_set
+            params['experiment_name'] = f"grid_search/hs:{param_set['hidden_size']}_lr:{param_set['learning_rate']}_bs:{param_set['batch_size']}_nl:{param_set['num_layers']}"
+            best_model_path = train_model(args.model_type, params)
+            print(f"Best model saved at {best_model_path}")
     else:
-        raise ValueError('Model type must be rnn or lstm')
-    
-    # save the model
-    torch.save(trained_model.state_dict(), f'checkpoints/trained_model_{args.model_type}.pkl')'''
+        print("Invalid grid_search argument. Must be either 'True' or 'False'")

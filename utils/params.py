@@ -1,67 +1,54 @@
-def get_params():
+def get_params(method="default"):
 
     params = {}
+    
+    if method == "grid_search":
+        # Grid Search Configuration
+        params["config"] = {"hidden_size": [64, 128, 1024],
+                            "learning_rate": [1e-5],
+                            "batch_size": [32],
+                            "num_layers": [4],
+                            "max_epochs": [100] }
+    elif method == "default":
+        # Default Configuration
+        params['config'] = {"hidden_size": 64,
+                            "learning_rate": 1e-2,
+                            "batch_size": 100,
+                            "num_layers": 4,
+                            "max_epochs": 250 }
+    else:
+        raise ValueError("Invalid method. Must be either 'grid_search' or 'default'.")
 
-    # Create: Experiment Objective
+    # Experiment Objective
     # - experiment: (0) Many to 1, (1) many to many
 
     params["experiment"] = 0
 
-    # Create: System Experiemnts
-    # - accelerator: gpu type, (MacOS-M, NVIDIA) gpu, (N/A) cpu
-    # - strategy: type of distributed computation environment
-    # - num_devices: number of gpus available
-    # - num_workers: number of cpus for dataloader
+    # System Experiemnts
 
     params["system"] = {"accelerator": "gpu", 
                         "strategy": "auto", 
                         "num_devices": 1,
                         "num_workers": 0}
 
-    # Create: Path Parameters
+    # Path Parameters
     # - results: path to store performance analytics
     # - version: version number of experiment to investigate for results
 
     params["paths"] = {"results": "results",
                     "version": 0}
-
-    # Create: Data Parameters
-    # - num_sequence: sequence size for network observations
-    # - num_features: number of dataset features 
-    # - num_samples: number of dataset observations
-    # - amplitude: min and max range for signal height
-    # - frequency: min and max range for signal repitition
-
-    params["data"] = {"num_sequence": 25,
-                    "num_samples": 10000,
-                    "num_features": 18,
-                    "amplitude": {"min": 1, "max": 10},
-                    "frequency": {"min": 1, "max": 10}}
-
-    # Create: Model Parameters
-    # - batch_size: number of observations per sample to network
-    # - num_layers: number of stacked lstm cells
-    # - hidden_size: number of lstm features
-    # - learning_rate: how much to listen to gradient
-    # - num_epochs: number of times model observes full dataset 
-
-    params["model"] = {"batch_size": 64,
-                    "num_layers": 3,
-                    "hidden_size": 512,
-                    "learning_rate": 3e-3,
-                    "num_epochs": 100,}
-
-    # Create: Evaluation Parameters
+    
+    # Evaluation Parameters
     # - tags: column names from saved algorithm training analytics
 
     params["evaluation"] = {"tags": ["train_error_epoch", 
                                     "valid_error_epoch", 
                                     "lr-Adam"]}
-    
-    params["grid_search"] = {"hidden_size": [128, 256],
-                             "learning_rate": [1e-3, 1e-4],
-                             "batch_size": [64, 128],
-                             "num_layers": [1, 3] }
-    
+
+    # Data Parameters
+
+    params["data"] = {"num_sequence": 25,
+                    "num_samples": 10000,
+                    "num_features": 18 }
     
     return params

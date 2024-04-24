@@ -7,14 +7,16 @@ from pytorch_lightning import Trainer
 from tqdm import tqdm
 import joblib
 import os
+import yaml
 import pandas as pd
+from torch.nn.functional import softmax
 
 from data.module import RoomOccupancyDataModule
 from data.dataset import RoomOccupancyDataset
-from utils.metrics import calculate_metrics, plot_predictions, plot_feature_with_time, plot_occupancy_with_time, display_grid_results
+from utils.metrics import calculate_metrics, plot_confusion_matrix, plot_occupancy_with_time, display_grid_results
 from utils.params import get_params
 
-params = get_params()
+params = get_params() # default fine for all cases here
 
 def load_model(model_type, checkpoint_path):
     # dynamically load the model from checkpoint
@@ -26,95 +28,93 @@ def load_model(model_type, checkpoint_path):
         raise ValueError("Unsupported model type")
     return model
 
-def test_model(model, data, mode, model_type):
+def test_model(model, data, mode, model_type, model_name, is_grid=False):
     predictions, actuals = [], []
+    
     # extract predictions and ground truths
     for samples, targets in tqdm(data, desc='Testing'):
         with torch.no_grad():
-            
-            if mode == 0: # MISO
-                preds = model(samples).detach().cpu()
-            else: # MIMO
-                preds = model(samples, targets.size()[1]).detach().cpu()
-                
-        predictions.append(preds)
-        actuals.append(targets)    
+            preds = model(samples).detach().cpu()
+            # apply softmax to convert logit outputs to probabilities
+            if mode == 1:  # MIMO
+                preds = softmax(preds, dim=2)
+            else:
+                preds = softmax(preds, dim=1)
+            predictions.append(preds)
+            actuals.append(targets)  
     
     # format
-    predictions = torch.vstack(predictions).cpu().numpy()
+    predictions = torch.vstack(predictions).numpy()
     actuals = torch.vstack(actuals).cpu().numpy()
     
     #print(predictions.shape, actuals.shape)
+    #print(predictions[:5])
     
-    # displaying metrics
-    mse, mae = calculate_metrics(actuals, predictions)
-    #plot_predictions(actuals, predictions, type(model).__name__)
+    if mode == 1 and predictions.ndim == 3:  # MIMO
+        predictions = predictions.mean(axis=1)  # Average over the sequence length
+        actuals = actuals.max(axis=1, keepdims=True)
     
-    # plotting
-    plot_occupancy_with_time(datamodule.y_train, datamodule.y_test, predictions, model_type)
+    # calc and display metrics
+    accuracy, f1 = calculate_metrics(actuals, predictions)
+    plot_confusion_matrix(actuals, predictions, [0, 1, 2, 3], model_type, model_name, is_grid=is_grid)
+    plot_occupancy_with_time(datamodule.y_train, datamodule.y_test, predictions, model_type, model_name, is_grid=is_grid, sequence_length=params['data']['num_sequence'])
     
-    # various parts of code used when predicting individual features
-    '''# load in the scaler
-    scaler = joblib.load('scaler.pkl')
+    # displaying metrics - regression
+    #mse, mae = calculate_metrics_regression(actuals, predictions)
+    #return mse, mae
     
-    # separate the binary and numeric columns
-    params = get_params()
-    predictions_numeric = predictions[:, :16]
-    predictions_binary = predictions[:, 16:]
-    
-    # unscale numerics and recombine with binary
-    predictions_numeric_unscaled = scaler.inverse_transform(predictions_numeric)
-    #print(predictions_numeric_unscaled.shape)
-    predictions_unscaled = np.concatenate((predictions_numeric_unscaled, predictions_binary), axis=1)
-    
-    #print(predictions.shape)
-    #print(actuals.shape, predictions_unscaled.shape)
-    
-    # displaying metrics
-    #calculate_metrics(actuals, predictions_unscaled)
-    #plot_predictions(actuals, predictions_unscaled, type(model).__name__)
+    return accuracy, f1
 
-    # plotting - single feature way
-    #predictions_unscaled = predictions_unscaled[:, 10]
-    #print(predictions_unscaled)
-    #plot_feature_with_time(datamodule.X_train, datamodule.X_test, predictions_unscaled, 'S1_Sound', model_type)'''
-    
-    return mse, mae
-
-def evaluate_models(checkpoint_dir, model_type):
-    
+def evaluate_models(grid_dir, model_type):
     results = []
 
-    for filename in os.listdir(checkpoint_dir):
+    for model_dir in os.listdir(grid_dir):
+        info_path = os.path.join(grid_dir, model_dir, 'hparams.yaml')
+        checkpoint_dir = os.path.join(grid_dir, model_dir, 'checkpoints')
+        # get the checkpoint (should only be 1)
+        filename = os.listdir(checkpoint_dir)[0]
         if filename.endswith(".ckpt"):
             checkpoint_path = os.path.join(checkpoint_dir, filename)
             model = load_model(model_type, checkpoint_path)
-            mse, mae = test_model(model, dataloader, mode, model_type)
-            results.append((filename, mse, mae))
+            #mse, mae = test_model(model, dataloader, mode, model_type)
+            #results.append((filename, mse, mae))
+            model_name = format_model_name(info_path)
+            accuracy, f1 = test_model(model, dataloader, mode, model_type, model_name, is_grid=True)
+            results.append((model_name, accuracy, f1))
 
-    return pd.DataFrame(results, columns=['Model', 'MSE', 'MAE'])
+    #return pd.DataFrame(results, columns=['Model', 'MSE', 'MAE'])
+    return pd.DataFrame(results, columns=['Model', 'Accuracy', 'F1-Score'])
+
+def format_model_name(info_path):
+    # fetch the experiment name from the hparams file for a model - use yaml library
+    with open(info_path, 'r') as file:
+        params = yaml.safe_load(file)
+    return params['experiment_name']
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_type', type=str, default='rnn', help='rnn or lstm')
-    parser.add_argument('--checkpoint_dir', type=str, required=True, help='Path to the model checkpoint')
+    parser.add_argument('--checkpoint_path', type=str, default='None', help='Path to the model checkpoint')
+    parser.add_argument('--grid_search', type=str, default='False', help='Perform grid search: True or False')
     args = parser.parse_args()
     
     datamodule = RoomOccupancyDataModule(batch_size=1, sequence_length=params['data']['num_sequence'])
     datamodule.setup(stage='test')
-    dataloader = datamodule.val_dataloader()
-    mode = get_params()['experiment']
-    df_results = evaluate_models(args.checkpoint_dir, args.model_type)
-    display_grid_results(df_results)
+    #dataloader = datamodule.val_dataloader() # for traditional testing
+    dataloader = datamodule.predict_dataloader() # for prediction on entire dataset
+    mode = params['experiment']
     
-    '''model = load_model(args.model_type, args.checkpoint_path)
-    datamodule = RoomOccupancyDataModule(batch_size=1, sequence_length=params['data']['num_sequence'])
-    datamodule.setup(stage='test')
-    dataloader = datamodule.val_dataloader()
-
-    mode = get_params()['experiment']
-
-    if test_model(model, dataloader, mode, args.model_type):
-        print('Successfully tested model.')
+    if args.grid_search == 'True':
+        grid_dir = f'lightning_logs/{args.model_type}/grid_search'
+        df_results = evaluate_models(grid_dir, args.model_type)
+        display_grid_results(df_results, args.model_type)
+    elif args.grid_search == 'False' and os.path.exists(args.checkpoint_path):
+        model = load_model(args.model_type, args.checkpoint_path)
+        hparams_path = args.checkpoint_path.split('checkpoints')[0] + 'hparams.yaml'
+        model_name = format_model_name(hparams_path)
+        if test_model(model, dataloader, mode, args.model_type, model_name):
+            print('Successfully tested model.')
+        else:
+            print('Failure in testing model.')
     else:
-        print('Failure in testing model.')'''
+        print('Please provide a valid grid_search or checkpoint_path argument. Exiting...')

@@ -1,14 +1,39 @@
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error, accuracy_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import pandas as pd
 import numpy as np
 import torch
+import os
 import datetime
 
 from utils.params import get_params
 
 def calculate_metrics(actuals, predictions):
+    accuracy = accuracy_score(actuals, np.argmax(predictions, axis=1))
+    f1 = f1_score(actuals, np.argmax(predictions, axis=1), average='weighted')
+    print(f'Accuracy: {accuracy: .4f}, F1: {f1: .4f}')
+    return accuracy, f1
+
+def plot_confusion_matrix(actuals, predictions, classes, model_type, model_name, is_grid=False):
+    cm = confusion_matrix(actuals, np.argmax(predictions, axis=1), labels=classes)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
+    disp.plot(cmap=plt.cm.Blues)
+    plt.title(f'{model_type} Confusion Matrix')
+    date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    if is_grid:
+        output_dir = f'figures/{model_type}/grid_search/{model_name}'
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        plt.savefig(f'{output_dir}/CM_{date}.png')
+    else:
+        output_dir = f'figures/{model_type}/{model_name}'
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        plt.savefig(f'{output_dir}/CM_{date}.png')
+        plt.show()
+
+def calculate_metrics_regression(actuals, predictions):
     params = get_params()
     if params['experiment'] == 1: # MIMO
         actuals = actuals.mean(axis=1)
@@ -17,58 +42,16 @@ def calculate_metrics(actuals, predictions):
     mae = mean_absolute_error(actuals, predictions)
     print(f'MSE: {mse: .4f}, MAE: {mae: .4f}')
     return mse, mae
-
-def plot_predictions(actuals, predictions, model_type):
-    plt.figure(figsize=(12, 6))
-    plt.plot(actuals[:200], label='Actual')
-    plt.plot(predictions[:200], label='Predicted')
-    plt.title(f'{model_type}: Predictions vs Actuals')
-    plt.legend()
-    date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    plt.savefig(f'figures/{model_type}_predictions_{date}.png')
-
-
-def plot_feature_with_time(X_train, X_test, predictions, feature_name, model_type, sequence_length=25):
-    plt.figure(figsize=(12, 6))
     
-    # Generating time steps for training and testing
-    train_time_steps = range(len(X_train))
-    test_time_steps = range(len(X_train), len(X_train) + len(X_test) - sequence_length + 1)
-    
-    # ensure sizes match
-    if len(predictions) != len(test_time_steps):
-        raise ValueError(f"Predictions and test time steps must have the same length. Their lengths are: {len(predictions)} and {len(test_time_steps)}")
+def plot_occupancy_with_time(y_train, y_test, predictions, model_type, model_name, is_grid=False, sequence_length=25):
+    plt.figure(figsize=(12, 6))
 
-    # Plotting training data
-    if isinstance(X_train, pd.DataFrame):
-        plt.plot(train_time_steps, X_train[feature_name], label='Training Data', color='blue')
+    #if predictions.ndim == 3:  # Check if predictions are 3D - MIMO
+    #    predictions = predictions.mean(axis=1)  # Average over the sequence length
+    if predictions.ndim > 2: # convert softmax probabilities to class labels
+        predictions = np.argmax(predictions, axis=2).mean(axis=1)
     else:
-        raise ValueError("X_train must be a pandas DataFrame")
-
-    test_time_steps_2 = range(len(X_train), len(X_train) + len(X_test))
-
-    # Plotting test data
-    if isinstance(X_test, pd.DataFrame):
-        plt.plot(test_time_steps_2, X_test[feature_name], label='Test Data', color='orange')
-    else:
-        raise ValueError("X_test must be a pandas DataFrame")
-
-    # Plotting predictions
-    plt.plot(test_time_steps, predictions, label='Predictions', color='green', linestyle='--')
-    plt.title(f'{model_type} - {feature_name} over time with Predictions')
-    plt.xlabel('Time Index')
-    plt.ylabel(feature_name)
-    plt.legend()
-    date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    plt.savefig(f'figures/{model_type}/{feature_name}_vs_time_with_predictions_{date}.png')
-    plt.show()
-    
-# similar to previous function, but instead concerned with actual target (occupancy count)
-def plot_occupancy_with_time(y_train, y_test, predictions, model_type, sequence_length=25):
-    plt.figure(figsize=(12, 6))
-
-    if predictions.ndim == 3:  # Check if predictions are 3D - MIMO
-        predictions = predictions.mean(axis=1)  # Average over the sequence length
+        predictions = np.argmax(predictions, axis=1)
 
     # Generating time steps for training and testing
     train_time_steps = range(len(y_train))
@@ -93,30 +76,40 @@ def plot_occupancy_with_time(y_train, y_test, predictions, model_type, sequence_
 
     # Plotting predictions
     plt.plot(prediction_time_steps, predictions, label='Predictions', color='green', linestyle='--')
-    plt.title(f'{model_type} - Occupancy Count over Time with Predictions')
+    plt.title(f'{model_type} - Occupancy Count v Time w/ Predictions')
     plt.xlabel('Time Index')
     plt.ylabel('Occupancy Count (Target)')
     plt.legend()
     date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    plt.savefig(f'figures/{model_type}/target_performance_over_time_{date}.png')
-    plt.show()
+    if is_grid:
+        output_dir = f'figures/{model_type}/grid_search/{model_name}'
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        plt.savefig(f'{output_dir}/occupancy_v_time_{date}.png')
+    else:
+        output_dir = f'figures/{model_type}/{model_name}'
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        plt.savefig(f'{output_dir}/occupancy_v_time_{date}.png')
+        plt.show()
 
-def display_grid_results(df_results):
+def display_grid_results(df_results, model_type):
     """
     Display the model evaluation results in a formatted table.
     
     Args:
-    df_results (DataFrame): A pandas DataFrame containing the columns 'Model' and 'MSE'.
+    df_results (DataFrame): A pandas DataFrame containing the columns 'Model', 'Accuracy', and 'F1-Score
     """
-    # Use pandas styling to highlight the minimum values in the MSE column
-    styled_df = df_results.style.highlight_min(subset=['MSE'], color='lightgreen', axis=0)
-    
-    # Display the styled DataFrame
-    print(styled_df.to_string())
-
-    # sort by best
-    sorted_df = df_results.sort_values('MSE', ascending=True).reset_index(drop=True)
+    # sort by F1-Score
+    sorted_df = df_results.sort_values(by='F1-Score', ascending=False)
     print(sorted_df)
+    
+    # save to csv
+    date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    output_dir = f'figures/{model_type}/grid_search'
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    sorted_df.to_csv(f'{output_dir}/{date}.csv')
 
   
 #X_train, X_test, y_train, y_test = fetch_and_split_data()

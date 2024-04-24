@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import torch
 from ucimlrepo import fetch_ucirepo
-from sklearn.model_selection import train_test_split
 
 from data.dataset import RoomOccupancyDataset
 from utils.params import get_params
@@ -39,14 +38,24 @@ class RoomOccupancyDataModule(LightningDataModule):
         
         self.X_train, self.X_test, self.y_train, self.y_test = X_train, X_test, y_train, y_test
 
-    def train_dataloader(self):
-        mode_num = get_params()['experiment']
+    def _predict_dataloader(self):
+        # Entire dataset; for widespread prediction
+        mode_num = params['experiment']
         mode = 'MIMO' if mode_num == 1 else 'MISO'
-        train_dataset = RoomOccupancyDataset(self.X_train, self.y_train, self.sequence_length, mode=mode)
+        # concat X_train and X_test, y_train and y_test
+        x = np.concatenate((self.X_train, self.X_test), axis=0)
+        y = np.concatenate((self.y_train, self.y_test), axis=0)
+        dataset = RoomOccupancyDataset(x, y, self.batch_size, self.sequence_length, mode=mode)
+        return DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
+
+    def train_dataloader(self):
+        mode_num = params['experiment']
+        mode = 'MIMO' if mode_num == 1 else 'MISO'
+        train_dataset = RoomOccupancyDataset(self.X_train, self.y_train, self.batch_size, self.sequence_length, mode=mode)
         return DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
 
     def val_dataloader(self):
-        mode_num = get_params()['experiment']
+        mode_num = params['experiment']
         mode = 'MIMO' if mode_num == 1 else 'MISO'
-        val_dataset = RoomOccupancyDataset(self.X_test, self.y_test, self.sequence_length, mode=mode)
+        val_dataset = RoomOccupancyDataset(self.X_test, self.y_test, self.batch_size, self.sequence_length, mode=mode)
         return DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False)
