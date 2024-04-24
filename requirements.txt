@@ -1,1 +1,9 @@
-lightning
+pytorch-lightning
+torch
+pandas
+numpy
+matplotlib
+tqdm
+ucimlrepo
+scikit-learn
+
