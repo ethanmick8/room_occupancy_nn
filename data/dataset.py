@@ -6,10 +6,16 @@ import pandas as pd
 import torch
 from ucimlrepo import fetch_ucirepo
 import joblib
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class RoomOccupancyDataset(Dataset):
+    """_summary_ This class is a PyTorch Dataset class that prepares the Room Occupancy dataset for training, 
+    validation, and testing. It also handles cross validation if specified. The data is fetched from the UCI \
+    repository, and params are specified via utils/params.py in line with the rest of the code library.
+
+    Args:
+        Dataset (_type_): _description_ The Room Occupancy Dataset class is a PyTorch Dataset class
+    """
     def __init__(self, X, y, batch_size, sequence_length, scale_data=True, mode='MISO'):
         """
         X: features, initially a Pandas DataFrame
@@ -43,15 +49,11 @@ class RoomOccupancyDataset(Dataset):
             # combine scaled features with binary columns
             X_scaled = pd.concat([numeric_cols, binary_data], axis=1)
         else:
+            # simply convert to numpy array - no scaling
             X_scaled = X
-            #y = y.to_numpy()
 
         X_scaled = X_scaled.to_numpy()
         y = y.to_numpy().reshape(-1)
-        #print(y.shape)
-        
-        # Convert class indices to one-hot encoding (not needed)
-        #y_one_hot = torch.nn.functional.one_hot(torch.tensor(y), num_classes=4).numpy()
         
         # save the scaler for later use
         scaler_file = 'scaler.pkl'
@@ -60,10 +62,12 @@ class RoomOccupancyDataset(Dataset):
         self.sequences, self.targets = self.create_sequences(X_scaled, y) 
     
     def create_sequences(self, X, y):
+        """_summary_ This method creates sequences of input data and their corresponding targets.
+        Args:
+            X (_type_): _description_ The input features
+            y (_type_): _description_ The target values"""
         sequences = []
         targets = []
-        #print(f"X shape: {X.shape}")
-        #print(f"y shape: {y.shape}")
         for i in range(len(X) - self.sequence_length + 1):
             if self.mode =='SISO':
                 seq = np.zeros((self.sequence_length, X.shape[1]))
@@ -80,8 +84,19 @@ class RoomOccupancyDataset(Dataset):
                 targets.append(y[i:i + self.sequence_length])
         return np.array(sequences), np.array(targets)
     
+    def all_data(self):
+        """ Returns the entire dataset as numpy arrays. For use with LDA and SVM"""
+        # Flatten the time steps into the feature dimension
+        print(f'Sequences shape: {self.sequences.shape}')
+        num_samples, time_steps, num_features = self.sequences.shape
+        sequences_flat = self.sequences.reshape(num_samples, time_steps * num_features)
+        return sequences_flat, self.targets
+
+    
     def __len__(self):
+        """Return the number of sequences in the dataset"""
         return len(self.sequences)
     
     def __getitem__(self, idx):
+        """Return the sequence and target at the given index"""
         return torch.tensor(self.sequences[idx], dtype=torch.float32).to(device), torch.tensor(self.targets[idx], dtype=torch.int64).to(device)

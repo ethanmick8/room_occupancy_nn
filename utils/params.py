@@ -1,5 +1,21 @@
 def get_params(method="default"):
+    """_summary_ This function creates a comprehensive set of hyperparameters for the LSTM or RNN model
+    for the Room Occupancy dataset. The hyperparameters are used to train the model and evaluate its performance
+    using PyTorch Lightning. The function can be used to either set the hyperparameters to default values or
+    perform a grid search to find the optimal hyperparameters. The paper describes hyperparameters in detail
+    and this function highlights some of the core aspects of the many tests conducted in this project to extend
+    the original paper's focus on the more fundamental models - SVM, LDA.
 
+    Args:
+        method (str, optional): _description_. Defaults to "default". Optionally set to 'grid_search' to 
+        seamlessly perform grid search per a set of specifications such as those displayed below.
+
+    Raises:
+        ValueError: _description_ Must be either 'grid_search' or 'default'.
+
+    Returns:
+        _type_: _description_ The hyperparameters for the LSTM or RNN model
+    """
     params = {}
     
     if method == "grid_search":
@@ -40,5 +56,10 @@ def get_params(method="default"):
     # patience
     
     params["patience"] = 10
+    
+    # svm parameters
+    
+    params["svm"] = {"C": 1.0,
+                    "kernel": "linear" }
     
     return params
