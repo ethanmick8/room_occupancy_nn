@@ -62,6 +62,8 @@ class RoomOccupancyDataset(Dataset):
     def create_sequences(self, X, y):
         sequences = []
         targets = []
+        #print(f"X shape: {X.shape}")
+        #print(f"y shape: {y.shape}")
         for i in range(len(X) - self.sequence_length + 1):
             if self.mode =='SISO':
                 seq = np.zeros((self.sequence_length, X.shape[1]))

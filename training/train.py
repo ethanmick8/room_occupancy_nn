@@ -29,10 +29,19 @@ def train_model(model_type, params, fold_index=None):
         raise ValueError('Model type must be either "rnn" or "lstm"')
 
     # init data module
+    if fold_index is not None:
+        is_cross_val = True
+        folds = args.fold_index
+        print(f"Training model with {folds}-fold cross validation")
+    else:
+        is_cross_val = False
+        folds = 10 # the default value
     data_module = RoomOccupancyDataModule(batch_size=params['config']['batch_size'],
                                           sequence_length=params['data']['num_sequence'],
-                                          is_cross_val=True if fold_index else False)
-
+                                          num_splits=folds,
+                                          is_cross_val=is_cross_val)
+    data_module.setup()
+    
     # setup logger and callbacks
     if fold_index is not None:
         version = f"{params['experiment_name']}/fold_{fold_index}"
@@ -48,7 +57,7 @@ def train_model(model_type, params, fold_index=None):
 
     early_stopping = EarlyStopping(
         monitor='val_loss',
-        patience=15,
+        patience=params["patience"],
         verbose=True,
         mode='min')
 
@@ -64,7 +73,7 @@ def train_model(model_type, params, fold_index=None):
     if not fold_index: # default split
         trainer.fit(model, datamodule=data_module)
     else: # cross validation
-        trainer.fit(model, data_module.train_dataloader(fold_index), data_module.val_dataloader(fold_index))
+        trainer.fit(model, datamodule=data_module)
 
     # returning the best model checkpoint
     return checkpoint_callback.best_model_path
@@ -80,7 +89,7 @@ if __name__ == '__main__':
     if args.grid_search == 'False':
         params = get_params() # default
         
-        if args.fold_index == "True":
+        if args.fold_index is not None:
             params['experiment_name'] = f"cross_val/default_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
             for i in range(args.fold_index): # k-fold CV
                 best_model_path = train_model(args.model_type, params, fold_index=i)

@@ -15,7 +15,7 @@ def get_params(method="default"):
                             "learning_rate": 0.0001,
                             "batch_size": 64,
                             "num_layers": 1,
-                            "max_epochs": 100 }
+                            "max_epochs": 250 }
     else:
         raise ValueError("Invalid method. Must be either 'grid_search' or 'default'.")
 
@@ -36,5 +36,9 @@ def get_params(method="default"):
     params["data"] = {"num_sequence": 25,
                     "num_samples": 10000,
                     "num_features": 18 }
+    
+    # patience
+    
+    params["patience"] = 10
     
     return params
