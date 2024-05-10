@@ -87,7 +87,6 @@ class RoomOccupancyDataset(Dataset):
     def all_data(self):
         """ Returns the entire dataset as numpy arrays. For use with LDA and SVM"""
         # Flatten the time steps into the feature dimension
-        print(f'Sequences shape: {self.sequences.shape}')
         num_samples, time_steps, num_features = self.sequences.shape
         sequences_flat = self.sequences.reshape(num_samples, time_steps * num_features)
         return sequences_flat, self.targets

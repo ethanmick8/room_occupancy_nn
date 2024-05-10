@@ -59,7 +59,7 @@ def get_params(method="default"):
     
     # svm parameters
     
-    params["svm"] = {"C": 1.0,
-                    "kernel": "linear" }
+    params["svm"] = {"C": 100.0,
+                    "kernel": "rbf" }
     
     return params

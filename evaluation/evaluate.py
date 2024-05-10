@@ -3,17 +3,22 @@ import numpy as np
 import argparse
 from models.rnn import EJM_RNN
 from models.lstm import EJM_LSTM
+from models.svm import EJM_SVM
 from pytorch_lightning import Trainer
 from tqdm import tqdm
 import joblib
 import pickle
+from scipy.special import expit  # Sigmoid function
 import os
 import yaml
 import pandas as pd
+import matplotlib.pyplot as plt
 from torch.nn.functional import softmax
 from data.module import RoomOccupancyDataModule
 from data.dataset import RoomOccupancyDataset
-from utils.metrics import calculate_metrics, calculate_metrics_cross_val, plot_confusion_matrix, plot_occupancy_with_time, display_grid_results
+from utils.metrics import calculate_metrics, calculate_metrics_cross_val
+from utils.metrics import plot_confusion_matrix, plot_occupancy_with_time
+from utils.metrics import display_grid_results, calculate_metrics_cross_val
 from utils.params import get_params
 import datetime
 
@@ -70,7 +75,9 @@ def evaluate_cross_validation(model_type, folds_dir, num_folds=10, data_length=1
     
     # Initialize an array to store the final predictions
     final_predictions = np.full(data_length, np.nan)
-    print(f'Shape of final predictions: {final_predictions.shape}')
+    #print(f'Shape of final predictions: {final_predictions.shape}')
+    if model_type == 'svm':
+        distances_per_fold = []
     
     # Process each fold
     for fold in tqdm(range(num_folds)):
@@ -85,8 +92,12 @@ def evaluate_cross_validation(model_type, folds_dir, num_folds=10, data_length=1
                     break
             model = load_model(model_type, checkpoint_path)
             X_val, y_val = datamodule_cv.val_data()  # Fetch validation data for the fold
-            # For SVM/LDA, data should be properly formatted for direct inference
+            # For SVM/LDA, data should be properly formatted for direct inference else:
             predictions = model.predict(X_val)
+            if model_type in ['svm']: # calculate average distance from decision boundary
+                distances = np.abs(model.decision_function(X_val))
+                #print(f'distances head: {distances[:5]}')
+                distances_per_fold.append(np.mean(np.abs(distances)))
             original_indices = datamodule_cv.validation_indices[fold]
             aligned_length = min(len(predictions), len(original_indices))
             final_predictions[original_indices[:aligned_length]] = predictions[:aligned_length]
@@ -109,6 +120,23 @@ def evaluate_cross_validation(model_type, folds_dir, num_folds=10, data_length=1
             original_indices = datamodule_cv.validation_indices[fold]
             final_predictions[original_indices] = predictions
 
+    # Plotting the average distances
+    # last minute functionality to plot the average distances from the decision boundary
+    # for svm
+    if model_type == 'svm':
+        plt.figure(figsize=(10, 5))
+        plt.plot(range(1, num_folds + 1), distances_per_fold, marker='o', linestyle='-')
+        plt.title('Average Distance from Decision Boundary per Fold')
+        plt.xlabel('Fold Number')
+        plt.ylabel('Average Distance')
+        plt.grid(True)
+        date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        output_dir = f'figures/{model_type}/cross_val_{num_folds}-fold'
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        plt.savefig(f'{output_dir}/decision_bound_dist_{date}.png')
+        plt.show()
+
     # Handle NaN values if any remain
     nan_indices = np.isnan(final_predictions)
     actuals = datamodule_cv.y[~nan_indices]
@@ -120,6 +148,8 @@ def evaluate_cross_validation(model_type, folds_dir, num_folds=10, data_length=1
     accuracy, f1_mac, f1_weighted = calculate_metrics_cross_val(actuals, final_predictions)
     plot_confusion_matrix(actuals, final_predictions, [0, 1, 2, 3], model_type, f'cross_val_{num_folds}-fold', is_grid=False, is_cross_val=True)
     plot_occupancy_with_time(actuals, actuals, final_predictions, model_type, f'cross_val_{num_folds}-fold', is_grid=False, is_test=False, is_cross_val=True, sequence_length=params['data']['num_sequence'])
+    #plot_performance_summary(actuals, final_predictions, model_type, f'cross_val_{num_folds}-fold')
+    print(f'actuals shape: {actuals.shape}, predictions shape: {final_predictions.shape}')
     # saving metric results to csv
     results = pd.DataFrame({'Accuracy': [accuracy], 'F1-Macro': [f1_mac], 'F1-Weighted': [f1_weighted]})
     results.to_csv(f'figures/{model_type}/cross_val_{num_folds}-fold/results.csv', index=False)

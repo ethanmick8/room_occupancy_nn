@@ -1,4 +1,4 @@
-from sklearn.metrics import mean_squared_error, mean_absolute_error, accuracy_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import accuracy_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import pandas as pd
@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import os
 import datetime
+from ipywidgets import interact, FloatSlider
 from utils.params import get_params
 
 params = get_params()
@@ -39,7 +40,8 @@ def plot_confusion_matrix(actuals, predictions, classes, model_type, model_name,
         classes (_type_): _description_ The classes of the dataset
         model_type (_type_): _description_ The type of model used
         model_name (_type_): _description_ The name of the model
-        is_grid (bool, optional): _description_. Defaults to False. Specifies whether or not dealing w/ grid search
+        is_grid (bool, optional): _description_. Defaults to False. 
+        Specifies whether or not dealing w/ grid search
         is_cross_val (bool, optional): _description_. Defaults to False. Same as above but cross val
     """
     if not is_cross_val: # if not cross validation, convert softmax probabilities to class labels
@@ -77,7 +79,8 @@ def plot_occupancy_with_time(y_train, y_test, predictions, model_type, model_nam
         model_type (_type_): _description_ The type of model used
         model_name (_type_): _description_ The name of the model
         is_grid (bool, optional): _description_. Defaults to False.
-        is_test (bool, optional): _description_. Defaults to True. Specifies whether or not dealing w/ test set (False means predict
+        is_test (bool, optional): _description_. Defaults to True. Specifies 
+            whether or not dealing w/ test set (False means predict
             dataloader is utilized (unorthodox method followed in paper for confusion matrices))
         is_cross_val (bool, optional): _description_. Defaults to False.
         sequence_length (int, optional): _description_. Defaults to 25. The length of the input sequences
@@ -110,7 +113,8 @@ def plot_occupancy_with_time(y_train, y_test, predictions, model_type, model_nam
         test_time_steps = range(len(y_train), len(y_train) + len(y_test))
         # Ensure sizes match
         if is_test:
-            prediction_time_steps = range(len(y_train) + sequence_length - 1, len(y_train) + len(y_test))
+            prediction_time_steps = range(len(y_train) + sequence_length - 1, 
+                                          len(y_train) + len(y_test))
         else:
             prediction_time_steps = range(sequence_length - 1, len(y_train) + len(y_test))
         if len(predictions) != len(prediction_time_steps):
@@ -156,10 +160,12 @@ def plot_occupancy_with_time(y_train, y_test, predictions, model_type, model_nam
 
 def display_grid_results(df_results, model_type):
     """
-    Display the model evaluation results in a formatted table akin to those in the paper.
+    Display the model evaluation results in a formatted table akin to 
+    those in the paper.
     
     Args:
-    df_results (DataFrame): A pandas DataFrame containing the columns 'Model', 'Accuracy', and 'F1-Score
+    df_results (DataFrame): A pandas DataFrame containing 
+    the columns 'Model', 'Accuracy', and 'F1-Score
     """
     # sort by F1-Score
     sorted_df = df_results.sort_values(by='F1-Score', ascending=False)

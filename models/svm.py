@@ -1,6 +1,7 @@
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
-
+from sklearn.decomposition import PCA
+from sklearn.pipeline import Pipeline
 class EJM_SVM:
     def __init__(self, C=1.0, kernel='rbf'):
         self.model = SVC(C=C, kernel=kernel)
@@ -14,3 +15,11 @@ class EJM_SVM:
     def evaluate(self, X, y):
         predictions = self.predict(X)
         return accuracy_score(y, predictions)
+    
+    def decision_function(self, X):
+        """Return decision function values."""
+        return self.model.decision_function(X)
+    
+    def get_support_vectors(self):
+        """Return support vectors."""
+        return self.model.support_vectors_

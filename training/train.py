@@ -63,6 +63,10 @@ def train_model(model_type, params, fold_index=None):
         X_train, y_train = data_module.train_data()
         model.train(X_train, y_train)
         X_val, y_val = data_module.val_data()
+        if model_type == 'svm':
+            distances = model.decision_function(X_train)
+            average_distance = np.mean(np.abs(distances))
+            print(f'Average distance from decision boundary: {average_distance}')
         validation_accuracy = model.evaluate(X_val, y_val)
         print(f"Validation Accuracy: {validation_accuracy}")
         
@@ -121,7 +125,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_type', type=str, default='rnn', help='Model to train: rnn or lstm')
     parser.add_argument('--grid_search', type=str, default='False', help='Perform grid search: True or False')
-    parser.add_argument('--fold_index', type=int, default=None, help='Number of folds for cross validation') # future work
+    parser.add_argument('--fold_index', type=int, default=None, help='Number of folds for cross validation')
     args = parser.parse_args()
 
     if args.grid_search == 'False':
