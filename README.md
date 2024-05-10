@@ -34,6 +34,6 @@ The above is the other runable command present in my library and it handles a lo
 Obviously it performs evaluation, measuring model performance on classification,  
 but it utilizes various plotting and calculation functions from utils/metrics.py to  
 display lots of information on a model. It is dynamic in its ability to process cross  
-validation training approaches as well as, exclusively for LSTM and SVM, traditional full  
-approaches. View train.py and evaluate.py for further details on arguments and  specific  
-functionality.
+validation training approaches as well as, exclusively for LSTM and SVM, traditional  
+full approaches. View train.py and evaluate.py for further details on arguments and  
+specific functionality.  
