@@ -18,7 +18,11 @@ cd room_occupancy_nn
 
 2. **Create Conda Environment**
 Create a Conda environment using the `environment.yml` file provided in the repository:  
-conda env create -f environment.yml  
+```conda env create -f environment.yml```  
+`requirements.txt` includes many of the core libraries in its list but it is not  
+complete; this library is not designed to support packaging that would normally  
+be expected when a file such as this is included because it's easier to just indicate  
+the complete environment used as such.
 
 3. **Activate the Environment**
 
